@@ -3,13 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard con Base de Datos</title>
+    <title>SaaS Obras - Acceso Privado</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-100 p-8 font-sans">
-    <div class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+<body class="bg-slate-100 font-sans min-h-screen flex flex-col items-center justify-center p-8">
+
+    <div id="login-view" class="bg-white p-8 rounded-lg shadow-lg max-w-sm w-full border border-slate-200">
+        <h2 class="text-2xl font-bold mb-6 text-center text-slate-800">SaaS Constructora</h2>
         
-        <div class="bg-white p-6 rounded-lg shadow-lg border border-slate-200">
+        <label class="block text-sm font-bold text-slate-600 mb-1">Usuario</label>
+        <input type="text" id="username" class="mb-4 w-full border rounded p-2" placeholder="Ej: admin">
+        
+        <label class="block text-sm font-bold text-slate-600 mb-1">Contraseña</label>
+        <input type="password" id="password" class="mb-6 w-full border rounded p-2" placeholder="••••">
+        
+        <button onclick="iniciarSesion()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded transition">
+            Ingresar al Sistema
+        </button>
+    </div>
+
+    <div id="dashboard-view" class="hidden w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <div class="bg-white p-6 rounded-lg shadow-lg border border-slate-200 lg:col-span-1">
             <h2 class="text-xl font-bold mb-4 text-slate-800">1. Ingresar Reporte</h2>
             
             <label class="text-sm font-bold text-slate-600">Capataz:</label>
@@ -22,23 +37,55 @@
             <textarea id="texto" rows="4" class="mb-3 w-full border rounded p-2" placeholder="Ej: Jefe, hoy al echar el cemento..."></textarea>
             
             <button onclick="guardarReporte()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded">
-                Guardar en Base de Datos
+                Guardar en Bóveda Segura
+            </button>
+            
+            <button onclick="cerrarSesion()" class="mt-4 w-full bg-red-100 hover:bg-red-200 text-red-700 font-bold py-2 rounded text-sm">
+                Cerrar Sesión
             </button>
         </div>
 
-        <div class="bg-slate-900 text-white p-6 rounded-lg shadow-lg">
-            <h2 class="text-xl font-bold mb-4 text-blue-300 border-b border-slate-700 pb-2">2. Historial de Obras</h2>
-            
+        <div class="bg-slate-900 text-white p-6 rounded-lg shadow-lg lg:col-span-2">
+            <h2 class="text-xl font-bold mb-4 text-blue-300 border-b border-slate-700 pb-2">2. Historial de tu Empresa</h2>
             <div id="historial" class="space-y-4">
-                <p class="text-slate-500 italic text-center">Cargando base de datos...</p>
+                <p class="text-slate-500 italic text-center">Cargando datos seguros...</p>
             </div>
         </div>
     </div>
 
     <script>
-        // Función para enviar datos a Python
+        let usuarioActualId = null; // Memoria temporal para saber quién está conectado
+
+        // 1. Lógica del Login
+        async function iniciarSesion() {
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+
+            const respuesta = await fetch("/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username: user, password: pass })
+            });
+            const datos = await respuesta.json();
+
+            if (datos.success) {
+                usuarioActualId = datos.usuario_id;
+                // Cambiamos las pantallas
+                document.getElementById('login-view').classList.add('hidden');
+                document.getElementById('dashboard-view').classList.remove('hidden');
+                // Removemos clases que centran el login para que el dashboard ocupe toda la pantalla arriba
+                document.body.classList.remove('items-center', 'justify-center'); 
+                
+                cargarHistorial(); // Cargamos solo los datos de este usuario
+            } else {
+                alert(datos.mensaje); // "Usuario o clave incorrecta"
+            }
+        }
+
+        // 2. Guardar un reporte
         async function guardarReporte() {
             const datos = {
+                usuario_id: usuarioActualId, // ¡Enviamos la credencial del usuario!
                 nombre_capataz: document.getElementById('capataz').value,
                 obra_id: document.getElementById('obra').value,
                 texto: document.getElementById('texto').value
@@ -46,32 +93,29 @@
 
             if(!datos.texto) return alert("Escribe un mensaje primero.");
 
-            // Enviamos el dato a la ruta POST
             await fetch("/procesar-reporte", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(datos)
             });
             
-            document.getElementById('texto').value = ""; // Limpiamos la caja de texto
-            cargarHistorial(); // Recargamos el historial para ver el nuevo dato
+            document.getElementById('texto').value = ""; 
+            cargarHistorial(); 
         }
 
-        // Función para pedirle el historial a Python
+        // 3. Cargar el historial personalizado
         async function cargarHistorial() {
-            // Pedimos los datos a la ruta GET
-            const respuesta = await fetch("/historial");
+            const respuesta = await fetch(`/historial/${usuarioActualId}`); // Pedimos la ruta con nuestro ID
             const reportes = await respuesta.json();
             
             const contenedor = document.getElementById('historial');
-            contenedor.innerHTML = ""; // Limpiamos la pantalla
+            contenedor.innerHTML = ""; 
             
             if (reportes.length === 0) {
-                contenedor.innerHTML = "<p class='text-slate-500 text-center'>No hay reportes guardados todavía.</p>";
+                contenedor.innerHTML = "<p class='text-slate-500 text-center'>Tu empresa no tiene reportes guardados todavía.</p>";
                 return;
             }
 
-            // Dibujamos una tarjeta por cada reporte
             reportes.forEach(rep => {
                 const color = rep.riesgo ? "border-red-500 bg-red-900/40" : "border-green-500 bg-slate-800";
                 const icono = rep.riesgo ? "🔴 PELIGRO" : "✅ OK";
@@ -89,8 +133,15 @@
             });
         }
 
-        // Ejecutar esto apenas abrimos la página web
-        window.onload = cargarHistorial;
+        // 4. Salir
+        function cerrarSesion() {
+            usuarioActualId = null;
+            document.getElementById('username').value = "";
+            document.getElementById('password').value = "";
+            document.getElementById('dashboard-view').classList.add('hidden');
+            document.getElementById('login-view').classList.remove('hidden');
+            document.body.classList.add('items-center', 'justify-center');
+        }
     </script>
 </body>
 </html>
