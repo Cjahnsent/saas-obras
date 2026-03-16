@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard con Base de Datos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 p-8 font-sans">
+    <div class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+        
+        <div class="bg-white p-6 rounded-lg shadow-lg border border-slate-200">
+            <h2 class="text-xl font-bold mb-4 text-slate-800">1. Ingresar Reporte</h2>
+            
+            <label class="text-sm font-bold text-slate-600">Capataz:</label>
+            <input type="text" id="capataz" class="mb-3 w-full border rounded p-2" value="Luis Torres">
+            
+            <label class="text-sm font-bold text-slate-600">ID de la Obra:</label>
+            <input type="text" id="obra" class="mb-3 w-full border rounded p-2" value="Torre Sur">
+            
+            <label class="text-sm font-bold text-slate-600">Mensaje:</label>
+            <textarea id="texto" rows="4" class="mb-3 w-full border rounded p-2" placeholder="Ej: Jefe, hoy al echar el cemento..."></textarea>
+            
+            <button onclick="guardarReporte()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded">
+                Guardar en Base de Datos
+            </button>
+        </div>
+
+        <div class="bg-slate-900 text-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-xl font-bold mb-4 text-blue-300 border-b border-slate-700 pb-2">2. Historial de Obras</h2>
+            
+            <div id="historial" class="space-y-4">
+                <p class="text-slate-500 italic text-center">Cargando base de datos...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Función para enviar datos a Python
+        async function guardarReporte() {
+            const datos = {
+                nombre_capataz: document.getElementById('capataz').value,
+                obra_id: document.getElementById('obra').value,
+                texto: document.getElementById('texto').value
+            };
+
+            if(!datos.texto) return alert("Escribe un mensaje primero.");
+
+            // Enviamos el dato a la ruta POST
+            await fetch("/procesar-reporte", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(datos)
+            });
+            
+            document.getElementById('texto').value = ""; // Limpiamos la caja de texto
+            cargarHistorial(); // Recargamos el historial para ver el nuevo dato
+        }
+
+        // Función para pedirle el historial a Python
+        async function cargarHistorial() {
+            // Pedimos los datos a la ruta GET
+            const respuesta = await fetch("/historial");
+            const reportes = await respuesta.json();
+            
+            const contenedor = document.getElementById('historial');
+            contenedor.innerHTML = ""; // Limpiamos la pantalla
+            
+            if (reportes.length === 0) {
+                contenedor.innerHTML = "<p class='text-slate-500 text-center'>No hay reportes guardados todavía.</p>";
+                return;
+            }
+
+            // Dibujamos una tarjeta por cada reporte
+            reportes.forEach(rep => {
+                const color = rep.riesgo ? "border-red-500 bg-red-900/40" : "border-green-500 bg-slate-800";
+                const icono = rep.riesgo ? "🔴 PELIGRO" : "✅ OK";
+                
+                contenedor.innerHTML += `
+                    <div class="p-3 rounded border-l-4 ${color}">
+                        <div class="flex justify-between font-bold mb-1">
+                            <span class="text-lg text-white">${rep.obra}</span>
+                            <span class="text-sm">${icono}</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-2">${rep.fecha} | Por: ${rep.capataz}</p>
+                        <p class="text-sm text-slate-200 capitalize">${rep.hitos}</p>
+                    </div>
+                `;
+            });
+        }
+
+        // Ejecutar esto apenas abrimos la página web
+        window.onload = cargarHistorial;
+    </script>
+</body>
+</html>
